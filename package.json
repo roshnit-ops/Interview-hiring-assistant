@@ -1,0 +1,14 @@
+{
+  "name": "sales-interview-tool",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "install:all": "npm install && cd client && npm install && cd ../server && npm install",
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev",
+    "dev": "npm run dev:server & npm run dev:client",
+    "build:client": "cd client && npm run build",
+    "start:server": "cd server && npm start",
+    "start": "npm run build:client && cd server && node index.js"
+  }
+}

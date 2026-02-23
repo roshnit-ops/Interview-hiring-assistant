@@ -1,0 +1,65 @@
+{
+  "role": "VP of Sales",
+  "categories": [
+    {
+      "name": "Sales Track Record",
+      "weight": 0.25,
+      "criteria": "Proven quota attainment, revenue growth, deal size experience, ability to scale sales in similar stage/company.",
+      "sample_questions": [
+        "Describe your biggest sales achievements (e.g., revenue grown, quotas exceeded).",
+        "What deal sizes have you closed, and in what markets?",
+        "Tell me about a time you turned around an underperforming territory/team."
+      ]
+    },
+    {
+      "name": "Leadership & Team Building",
+      "weight": 0.2,
+      "criteria": "Experience building/scaling teams, hiring, retaining top talent, fostering high-performance culture.",
+      "sample_questions": [
+        "How have you built and scaled sales teams from scratch?",
+        "Describe your approach to hiring A-players.",
+        "How do you handle underperformers?"
+      ]
+    },
+    {
+      "name": "Strategic Thinking & GTM Execution",
+      "weight": 0.2,
+      "criteria": "Ability to develop sales strategy, align with product/marketing, forecast accurately, adapt to market changes.",
+      "sample_questions": [
+        "Walk me through a sales strategy you designed and executed.",
+        "How do you build forecasting models?",
+        "Describe adapting strategy during economic downturns."
+      ]
+    },
+    {
+      "name": "Coaching & Development",
+      "weight": 0.15,
+      "criteria": "Mentoring reps, improving performance, building pipelines, deal coaching.",
+      "sample_questions": [
+        "How do you coach reps on deals?",
+        "Give an example of developing a rep into a top performer.",
+        "What metrics do you track for team development?"
+      ]
+    },
+    {
+      "name": "Communication & Influence",
+      "weight": 0.1,
+      "criteria": "Clear articulation, executive presence, cross-functional collaboration.",
+      "sample_questions": [
+        "Present a mock sales pitch for our product.",
+        "How do you influence non-sales stakeholders?",
+        "Describe communicating bad news (e.g., missed quarter)."
+      ]
+    },
+    {
+      "name": "Cultural Fit & Motivation",
+      "weight": 0.1,
+      "criteria": "Alignment with company values, passion for the mission, resilience, self-awareness.",
+      "sample_questions": [
+        "Why do you want this role/company?",
+        "What motivates you beyond compensation?",
+        "Tell me about a failure and what you learned."
+      ]
+    }
+  ]
+}
