@@ -1,50 +1,58 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useStreamingTranscription } from './useStreamingTranscription';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 import './Interview.css';
 
 const API_BASE = '';
 const PENDING_REPORT_KEY = 'interviewPendingReport';
+const ROLE_LABELS = { 'vp-sales': 'VP of Sales', 'vp-ta': 'VP of TA', 'account-executive': 'Account Executive' };
 const SUGGESTED_QUESTIONS_INTERVAL_MS = 25000; // refresh suggested questions every 25s
 const MIN_TRANSCRIPT_FOR_QUESTIONS = 60; // chars - request questions as soon as we have a bit of transcript
 
-async function fetchRubricSampleQuestions() {
-  const res = await fetch(`${API_BASE}/api/rubric-sample-questions`);
+async function fetchRubricSampleQuestions(role) {
+  const url = role ? `${API_BASE}/api/rubric-sample-questions?role=${encodeURIComponent(role)}` : `${API_BASE}/api/rubric-sample-questions`;
+  const res = await fetch(url);
   if (!res.ok) throw new Error(await res.text());
   const data = await res.json();
   return (data.questions || []).map((q) => ({
-    question: typeof q === 'string' ? q : (q.question || ''),
+    question: typeof q === 'string' ? q : (q.question || q),
     already_asked: false,
+    category: typeof q === 'object' ? q.category : undefined,
+    weight_pct: typeof q === 'object' ? q.weight_pct : undefined,
   }));
 }
 
-async function evaluatePartial(transcript) {
+/** True if the question (or its key phrases) appears in the transcript — interviewer likely asked it. */
+function questionAskedInTranscript(question, transcript) {
+  if (!question || !transcript || transcript.length < 30) return false;
+  const q = question.toLowerCase().replace(/[?!.]/g, '').trim();
+  const t = transcript.toLowerCase();
+  if (q.length < 15) return t.includes(q);
+  const stopWords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'were', 'been', 'be', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must', 'can', 'you', 'your', 'me', 'my', 'we', 'our', 'they', 'their', 'it', 'its', 'this', 'that', 'what', 'which', 'who', 'how', 'when', 'where', 'why']);
+  const words = q.split(/\s+/).filter((w) => w.length > 2 && !stopWords.has(w));
+  if (words.length < 2) return t.includes(q.slice(0, 40));
+  const matchCount = words.filter((w) => t.includes(w)).length;
+  return matchCount >= Math.min(3, words.length) && matchCount >= words.length * 0.35;
+}
+
+async function evaluatePartial(transcript, role) {
   const res = await fetch(`${API_BASE}/api/evaluate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ transcript }),
+    body: JSON.stringify({ transcript, role: role || 'vp-sales' }),
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
-/** Returns true if the question (or a significant part of it) appears in the transcript. Used to mark "asked" immediately. */
-function questionAppearsInTranscript(question, transcript) {
-  if (!question || !transcript || transcript.length < 20) return false;
-  const q = question.toLowerCase().replace(/[?!.]/g, '').trim();
-  const t = transcript.toLowerCase();
-  if (q.length < 8) return t.includes(q);
-  const words = q.split(/\s+/).filter((w) => w.length > 2);
-  if (words.length < 2) return t.includes(q);
-  const matchCount = words.filter((w) => t.includes(w)).length;
-  return matchCount >= Math.min(3, words.length) && matchCount >= words.length * 0.35;
-}
-
-function savePendingReport(transcript, turns, recipientEmail) {
+function savePendingReport(transcript, turns, recipientEmail, selectedRole) {
   try {
     localStorage.setItem(PENDING_REPORT_KEY, JSON.stringify({
       transcript,
       turns: turns || [],
       recipientEmail: recipientEmail || null,
+      selectedRole: selectedRole || 'vp-sales',
       savedAt: Date.now(),
     }));
   } catch (_) {}
@@ -74,15 +82,14 @@ export function getPendingReport() {
   }
 }
 
-async function evaluateFinal(transcript, turns, recipientEmail) {
+async function evaluateFinal(transcript, turns, role) {
   const res = await fetch(`${API_BASE}/api/evaluate-final`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       transcript,
       turns: turns || [],
-      email: recipientEmail || undefined,
-      recipientEmail: recipientEmail || undefined,
+      role: role || 'vp-sales',
     }),
   });
   const text = await res.text();
@@ -103,8 +110,9 @@ async function evaluateFinal(transcript, turns, recipientEmail) {
 
 const defaultSuggestedQuestions = [];
 
-export default function Interview({ recipientEmail, onEnd, recoveryData }) {
+export default function Interview({ selectedRole: selectedRoleProp, recipientEmail, onEnd, recoveryData }) {
   const isRecoveryMode = !!recoveryData;
+  const selectedRole = isRecoveryMode ? (recoveryData?.selectedRole ?? selectedRoleProp ?? 'vp-sales') : (selectedRoleProp ?? 'vp-sales');
   const [finalResult, setFinalResult] = useState(null);
   const [evaluating, setEvaluating] = useState(false);
   const [copyHint, setCopyHint] = useState(null);
@@ -120,7 +128,7 @@ export default function Interview({ recipientEmail, onEnd, recoveryData }) {
   const transcriptRef = useRef('');
   const partialIntervalRef = useRef(null);
 
-  const { transcript: liveTranscript, turns: liveTurns, isConnected, error, start, stop } = useStreamingTranscription({
+  const { transcript: liveTranscript, turns: liveTurns, isConnected, isStarting, error, start, stop } = useStreamingTranscription({
     onTurn: () => {},
     onError: (err) => console.error(err),
   });
@@ -134,18 +142,18 @@ export default function Interview({ recipientEmail, onEnd, recoveryData }) {
   useEffect(() => {
     if (isRecoveryMode) return;
     setRubricQuestionsLoading(true);
-    fetchRubricSampleQuestions()
+    fetchRubricSampleQuestions(selectedRole)
       .then(setRubricQuestions)
       .catch((err) => console.error('Rubric questions fetch failed:', err))
       .finally(() => setRubricQuestionsLoading(false));
-  }, [isRecoveryMode]);
+  }, [isRecoveryMode, selectedRole]);
 
   const fetchPartialEvaluation = useCallback(async () => {
     const t = transcriptRef.current;
     if (!t.trim() || t.length < MIN_TRANSCRIPT_FOR_QUESTIONS) return;
     setQuestionsLoading(true);
     try {
-      const result = await evaluatePartial(t);
+      const result = await evaluatePartial(t, selectedRole);
       setPartialResult({
         partial_scores: result.partial_scores || [],
         red_flags: result.red_flags || [],
@@ -154,7 +162,14 @@ export default function Interview({ recipientEmail, onEnd, recoveryData }) {
       });
       const raw = result.suggested_questions || [];
       const list = raw.map((item) =>
-        typeof item === 'string' ? { question: item, already_asked: false } : { question: item?.question ?? '', already_asked: !!item?.already_asked }
+        typeof item === 'string'
+          ? { question: item, already_asked: false }
+          : {
+              question: item?.question ?? '',
+              already_asked: !!item?.already_asked,
+              category: item?.category,
+              weight_pct: item?.weight_pct,
+            }
       );
       setSuggestedQuestionsFromApi(list.slice(0, 10));
     } catch (err) {
@@ -162,7 +177,7 @@ export default function Interview({ recipientEmail, onEnd, recoveryData }) {
     } finally {
       setQuestionsLoading(false);
     }
-  }, []);
+  }, [selectedRole]);
 
   const hasEnoughTranscript = transcript.trim().length >= MIN_TRANSCRIPT_FOR_QUESTIONS;
   useEffect(() => {
@@ -183,9 +198,9 @@ export default function Interview({ recipientEmail, onEnd, recoveryData }) {
       return;
     }
     setEvaluating(true);
-    savePendingReport(transcript, turns, effectiveRecipientEmail);
+    savePendingReport(transcript, turns, effectiveRecipientEmail, selectedRole);
     try {
-      const result = await evaluateFinal(transcript, turns, effectiveRecipientEmail);
+      const result = await evaluateFinal(transcript, turns, selectedRole);
       clearPendingReport();
       setFinalResult(result);
     } catch (err) {
@@ -193,7 +208,7 @@ export default function Interview({ recipientEmail, onEnd, recoveryData }) {
     } finally {
       setEvaluating(false);
     }
-  }, [transcript, turns, effectiveRecipientEmail]);
+  }, [transcript, turns, effectiveRecipientEmail, selectedRole]);
 
   const handleEndInterview = useCallback(async () => {
     stop();
@@ -236,8 +251,8 @@ export default function Interview({ recipientEmail, onEnd, recoveryData }) {
                   <option value="mic">Microphone only (interviewer)</option>
                 </select>
               </label>
-              <button className="btn btn-primary" onClick={handleStart} disabled={evaluating}>
-                Start recording
+              <button className="btn btn-primary" onClick={handleStart} disabled={evaluating || isStarting}>
+                {isStarting ? 'Connecting…' : 'Start recording'}
               </button>
             </div>
           )}
@@ -274,7 +289,7 @@ export default function Interview({ recipientEmail, onEnd, recoveryData }) {
 
       {showFinal ? (
         <div className="final-view">
-          <FinalReport result={finalResult} transcript={transcript} recipientEmail={effectiveRecipientEmail} onBack={onEnd} onRetry={handleRetryFinal} />
+          <FinalReport result={finalResult} transcript={transcript} roleLabel={ROLE_LABELS[selectedRole] || selectedRole} onBack={onEnd} onRetry={handleRetryFinal} />
         </div>
       ) : isRecoveryMode ? (
         <div className="recovery-view">
@@ -337,14 +352,21 @@ export default function Interview({ recipientEmail, onEnd, recoveryData }) {
 
             <div className="panel questions-panel" data-area="questions">
               <h2>Suggested questions</h2>
+              <p className="questions-panel-hint muted">
+                Up to 10 questions by category weight. As the interview proceeds, questions are marked “Asked” when they appear in the transcript and suggestions update. End interview to get the final evaluation and download the report as PDF.
+              </p>
               {rubricQuestionsLoading && rubricQuestions.length === 0 ? (
                 <p className="muted">Loading questions…</p>
               ) : (
                 <SuggestedQuestions
-                  questions={(suggestedQuestionsFromApi.length > 0 ? suggestedQuestionsFromApi : rubricQuestions).map((item) => ({
-                    question: item.question,
-                    already_asked: item.already_asked || questionAppearsInTranscript(item.question, transcript),
-                  }))}
+                  questions={(suggestedQuestionsFromApi.length > 0 ? suggestedQuestionsFromApi : rubricQuestions)
+                    .slice(0, 10)
+                    .map((item) => ({
+                      question: item.question,
+                      already_asked: !!item.already_asked || questionAskedInTranscript(item.question, transcript),
+                      category: item.category,
+                      weight_pct: item.weight_pct,
+                    }))}
                   onCopy={copyQuestion}
                   copyHint={copyHint}
                 />
@@ -398,15 +420,20 @@ function ScoresTable({ scores }) {
 function SuggestedQuestions({ questions, onCopy, copyHint }) {
   if (!questions?.length) return null;
   const items = questions.map((q) =>
-    typeof q === 'string' ? { question: q, already_asked: false } : { question: q?.question ?? '', already_asked: !!q?.already_asked }
+    typeof q === 'string'
+      ? { question: q, already_asked: false, category: null, weight_pct: null }
+      : { question: q?.question ?? '', already_asked: !!q?.already_asked, category: q?.category, weight_pct: q?.weight_pct }
   );
   return (
     <>
-      <p className="hint">Click to copy. Gray = already asked; green = still to ask.</p>
+      <p className="hint">Click to copy. Gray = already asked; green = still to ask. Weight % = category importance.</p>
       <ul className="question-list">
         {items.map((item, i) => (
           <li key={i} className={item.already_asked ? 'question-asked' : 'question-to-ask'}>
             <span className="question-badge">{item.already_asked ? 'Asked' : 'To ask'}</span>
+            {item.category != null && item.weight_pct != null && (
+              <span className="question-weight">{item.category} ({item.weight_pct}%)</span>
+            )}
             <button type="button" className="question-btn" onClick={() => onCopy(item.question)}>
               {item.question}
             </button>
@@ -456,7 +483,95 @@ function CurrentImpression({ text }) {
   );
 }
 
-function FinalReport({ result, transcript, recipientEmail, onBack, onRetry }) {
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function buildReportHtml(result, transcript, roleLabel) {
+  const titleRole = roleLabel || 'Interview';
+  const score = result.weighted_overall_score != null ? Number(result.weighted_overall_score).toFixed(1) : '—';
+  const rec = escapeHtml(result.hire_recommendation || '—');
+  const summary = escapeHtml(result.summary || '');
+  const scores = result.category_scores || [];
+  const rows = scores
+    .map((r) => `<tr><td style="padding:12px;border:1px solid #d0d7de;">${escapeHtml(r.name)}</td><td style="text-align:center;padding:12px;border:1px solid #d0d7de;">${r.score}</td><td style="padding:12px;border:1px solid #d0d7de;">${escapeHtml(r.justification || '')}</td></tr>`)
+    .join('');
+  const strengths = (result.strengths || []).map((s) => `<li>${escapeHtml(s)}</li>`).join('') || '<li>None noted</li>';
+  const weaknesses = (result.weaknesses || []).map((w) => `<li>${escapeHtml(w)}</li>`).join('') || '<li>None noted</li>';
+  const redFlags = (result.red_flags || []).map((f) => `<li>${escapeHtml(f)}</li>`).join('') || '<li>None noted</li>';
+  const q = result.questions_coverage || {};
+  const asked = (q.asked || []).map((a) => `<li><strong>${escapeHtml(a.category)}:</strong> ${escapeHtml(a.question_or_topic || '')}</li>`).join('') || '<li>—</li>';
+  const missed = (q.missed || []).map((m) => {
+    const qs = (m.sample_questions_not_asked || []).map((sq) => `<li>${escapeHtml(sq)}</li>`).join('');
+    return `<li><strong>${escapeHtml(m.category)}:</strong><ul>${qs}</ul></li>`;
+  }).join('') || '<li>—</li>';
+  const date = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const fullTranscript = escapeHtml(transcript || '—');
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>${escapeHtml(titleRole)} — Interview Evaluation Report</title><style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.6;color:#1a1a1a;max-width:720px;margin:0 auto;padding:24px;} table{border-collapse:collapse;width:100%;} th,td{border:1px solid #d0d7de;padding:12px;text-align:left;} th{background:#f6f8fa;}</style></head><body>
+<h1>${escapeHtml(titleRole)} — Interview Evaluation Report</h1><p>${date}</p>
+<h2>Hire recommendation</h2><p><strong>${rec}</strong></p>
+<h2>Weighted overall score</h2><p><strong>${score} / 100</strong></p>
+<h2>Category scores (1–5) & justification</h2><table><thead><tr><th>Category</th><th>Score</th><th>Justification</th></tr></thead><tbody>${rows}</tbody></table>
+<h2>Strengths</h2><ul>${strengths}</ul>
+<h2>Weaknesses</h2><ul>${weaknesses}</ul>
+<h2>Red flags</h2><ul>${redFlags}</ul>
+<h2>Questions / topics asked</h2><ul>${asked}</ul>
+<h2>Questions missed (recommended from rubric)</h2><ul>${missed}</ul>
+<h2>Overall summary</h2><p>${summary}</p>
+<h2>Full transcript</h2><pre style="background:#f6f8fa;padding:16px;overflow:auto;max-height:400px;">${fullTranscript}</pre>
+<p style="margin-top:24px;font-size:12px;color:#57606a;">Generated by Sales Interview Tool</p>
+</body></html>`;
+}
+
+async function downloadReport(result, transcript, roleLabel) {
+  const safeName = (roleLabel || 'Interview').replace(/\s+/g, '-');
+  const html = buildReportHtml(result, transcript, roleLabel);
+  const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+  const styleMatch = html.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
+  const content = (styleMatch ? `<style>${styleMatch[1]}</style>` : '') + (bodyMatch ? bodyMatch[1] : html);
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;background:#fff;padding:24px;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;';
+  wrap.innerHTML = content;
+  document.body.appendChild(wrap);
+
+  try {
+    await new Promise((r) => setTimeout(r, 100));
+    const canvas = await html2canvas(wrap, { scale: 2, useCORS: true, logging: false, width: wrap.offsetWidth, height: wrap.scrollHeight });
+    document.body.removeChild(wrap);
+
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pdfW = 210;
+    const pdfH = 297;
+    const imgW = pdfW;
+    const imgH = (canvas.height * pdfW) / canvas.width;
+    const totalPages = Math.ceil(imgH / pdfH);
+    const imgData = canvas.toDataURL('image/jpeg', 0.92);
+
+    for (let p = 0; p < totalPages; p++) {
+      if (p > 0) pdf.addPage();
+      pdf.addImage(imgData, 'JPEG', 0, -p * pdfH, imgW, imgH);
+    }
+    pdf.save(`${safeName}-Interview-Report-${new Date().toISOString().slice(0, 10)}.pdf`);
+  } catch (err) {
+    document.body.removeChild(wrap);
+    console.error('PDF generation failed:', err);
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${safeName}-Interview-Report-${new Date().toISOString().slice(0, 10)}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+}
+
+function FinalReport({ result, transcript, roleLabel, onBack, onRetry }) {
   const isError = result && result.error;
   const hasReport = result && !result.error && (result.hire_recommendation != null || (result.category_scores && result.category_scores.length > 0));
   if (isError) {
@@ -498,18 +613,12 @@ function FinalReport({ result, transcript, recipientEmail, onBack, onRetry }) {
     <div className="final-content">
       <h2>Final evaluation</h2>
 
-      {recipientEmail && result.emailSent ? (
-        <div className="email-success-banner">
-          Full evaluation report has been emailed to {recipientEmail}
-        </div>
-      ) : recipientEmail && result.emailSent === false ? (
-        <div className="email-error-banner" role="alert">
-          <strong>Report generated but email could not be sent.</strong> Please check your email manually or copy the report below.
-          {result.emailError && <p className="email-error-hint">{result.emailError}</p>}
-        </div>
-      ) : !recipientEmail ? (
-        <p className="muted email-skip-msg">Report was not emailed (no address was provided). Add your email on the home page next time to receive it.</p>
-      ) : null}
+      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+        <button type="button" className="btn btn-primary" onClick={() => downloadReport(result, transcript, roleLabel)}>
+          Download report (PDF)
+        </button>
+        <button className="btn btn-secondary" onClick={onBack}>Back to home</button>
+      </div>
 
       <section className="block final-recommendation-block">
         <h3>Hire recommendation</h3>
@@ -525,7 +634,7 @@ function FinalReport({ result, transcript, recipientEmail, onBack, onRetry }) {
 
       {scores.length > 0 && (
         <section className="block">
-          <h3>Category scores (1–5) & justification</h3>
+          <h3>Category scores & justification</h3>
           <table className="scores-table final-scores-table">
             <thead>
               <tr>
@@ -632,7 +741,12 @@ function FinalReport({ result, transcript, recipientEmail, onBack, onRetry }) {
         <div className="final-transcript">{transcript || '—'}</div>
       </section>
 
-      <button className="btn btn-secondary" onClick={onBack}>Back to home</button>
+      <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem', flexWrap: 'wrap' }}>
+        <button type="button" className="btn btn-primary" onClick={() => downloadReport(result, transcript, roleLabel)}>
+          Download report (PDF)
+        </button>
+        <button className="btn btn-secondary" onClick={onBack}>Back to home</button>
+      </div>
     </div>
   );
 }

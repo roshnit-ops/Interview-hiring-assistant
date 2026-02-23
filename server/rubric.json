@@ -1,65 +1,74 @@
 {
   "role": "VP of Sales",
+  "scoring_guide": "1=No fit, 2=Weak, 3=Mixed, 4=Strong, 5=Exceptional (repeated high-signal evidence)",
   "categories": [
     {
-      "name": "Sales Track Record",
+      "name": "Stage fit (startup, player-coach)",
+      "weight": 0.2,
+      "criteria": "Repeated 'build from scratch' + hands-on leadership; thrives with constraints; has personally carried deals while building team/process. Early-stage roles, scope ownership, player-coach indicators, scrappy execution.",
+      "sample_questions": [
+        "Describe a time you built sales from scratch in an early-stage company. What was the headcount and stage?",
+        "Tell me about a role where you were player-coach—personally carrying deals while building the team.",
+        "How have you operated with limited resources or ambiguity? Give a specific example.",
+        "Walk me through scaling from $20M to $100M ARR—what was your direct ownership?"
+      ]
+    },
+    {
+      "name": "Enterprise SaaS complex sales",
       "weight": 0.25,
-      "criteria": "Proven quota attainment, revenue growth, deal size experience, ability to scale sales in similar stage/company.",
+      "criteria": "Clear pattern of $100K+ ACV, multi-stakeholder, 3–6+ month cycles; scaled a repeatable enterprise motion. Deal size, cycle length, buyer seniority, logos, enterprise expansion.",
       "sample_questions": [
-        "Describe your biggest sales achievements (e.g., revenue grown, quotas exceeded).",
-        "What deal sizes have you closed, and in what markets?",
-        "Tell me about a time you turned around an underperforming territory/team."
+        "What deal sizes have you closed (ACV)? Give examples of $100K–$250K+ deals.",
+        "Describe your typical enterprise sales cycle length and multi-stakeholder dynamics.",
+        "Who were the buyers—CXO, CIO, COO? Walk me through a complex deal you led.",
+        "How did you scale from ~$20M to ~$100M in revenue? What was your role?"
       ]
     },
     {
-      "name": "Leadership & Team Building",
+      "name": "Sales leadership (hire, coach, perform)",
       "weight": 0.2,
-      "criteria": "Experience building/scaling teams, hiring, retaining top talent, fostering high-performance culture.",
+      "criteria": "Built and led AE org with clear bar-raising; performance management, ramp plans, consistent attainment. Hiring volume/quality, org design, promotions, attrition, quota attainment of team.",
       "sample_questions": [
-        "How have you built and scaled sales teams from scratch?",
-        "Describe your approach to hiring A-players.",
-        "How do you handle underperformers?"
+        "How have you built and scaled an AE team? Hiring volume, bar-raising, and org design?",
+        "Describe your approach to performance management and handling underperformers.",
+        "What ramp plans and development practices did you use? Promotions from within?",
+        "What was your team's quota attainment over the last few years? How did you inspect and improve?"
       ]
     },
     {
-      "name": "Strategic Thinking & GTM Execution",
-      "weight": 0.2,
-      "criteria": "Ability to develop sales strategy, align with product/marketing, forecast accurately, adapt to market changes.",
-      "sample_questions": [
-        "Walk me through a sales strategy you designed and executed.",
-        "How do you build forecasting models?",
-        "Describe adapting strategy during economic downturns."
-      ]
-    },
-    {
-      "name": "Coaching & Development",
+      "name": "Pipeline creation + expansion (outbound rigor)",
       "weight": 0.15,
-      "criteria": "Mentoring reps, improving performance, building pipelines, deal coaching.",
+      "criteria": "Built predictable outbound engine + repeatable expansion motion; coverage model + conversion metrics. Outbound motions, ICP clarity, activity-to-meeting-to-pipeline metrics, expansion/upsell record.",
       "sample_questions": [
-        "How do you coach reps on deals?",
-        "Give an example of developing a rep into a top performer.",
-        "What metrics do you track for team development?"
+        "Describe the outbound engine you built—ICP, coverage model, channel mix, and conversion metrics.",
+        "How did you measure pipeline creation (activity to meeting to pipeline)? What worked?",
+        "Tell me about your expansion/upsell motion. How repeatable was it?",
+        "Have you run or overseen SDR/cold outbound teams? What was the cadence and result?"
       ]
     },
     {
-      "name": "Communication & Influence",
+      "name": "Forecasting + operating cadence",
       "weight": 0.1,
-      "criteria": "Clear articulation, executive presence, cross-functional collaboration.",
+      "criteria": "Clear inspection rhythm with leading indicators; forecast hygiene; corrective loops that improved predictability. Weekly cadence, pipeline inspection, forecast accuracy, leading indicators.",
       "sample_questions": [
-        "Present a mock sales pitch for our product.",
-        "How do you influence non-sales stakeholders?",
-        "Describe communicating bad news (e.g., missed quarter)."
+        "What was your weekly operating cadence? Pipeline inspection, forecast review, QBRs?",
+        "How did you improve forecast accuracy over time? What leading indicators did you use?",
+        "Describe a time you had to correct course based on pipeline or forecast data.",
+        "What KPIs did you own and how did you inspect them with the team?"
       ]
     },
     {
-      "name": "Cultural Fit & Motivation",
+      "name": "BFSI / regulated buyers",
       "weight": 0.1,
-      "criteria": "Alignment with company values, passion for the mission, resilience, self-awareness.",
+      "criteria": "Direct BFSI wins or strong adjacency; credible with security/procurement/compliance-heavy buyers. BFSI logos, regulated industries, security/procurement navigation, compliance credibility.",
       "sample_questions": [
-        "Why do you want this role/company?",
-        "What motivates you beyond compensation?",
-        "Tell me about a failure and what you learned."
+        "Have you sold into banks, credit unions, or other BFSI/regulated buyers? Which logos?",
+        "How do you navigate security, procurement, and compliance in enterprise deals?",
+        "Describe a deal where you had to work through legal or compliance with the buyer.",
+        "Any experience in fintech, CX platforms, or selling to financial institutions?"
       ]
     }
-  ]
+  ],
+  "non_negotiables_summary": "Scaled revenue ~$20M to ≥$100M with direct ownership; built or scaled sales org in early-stage (<200); 12–20 years Enterprise SaaS, 5+ years leading AE teams; closed $100K–$250K+ ACV; sold to CXO/CIO/COO; 3–6 month cycles; owned Enterprise + Strategic segments; built outbound-led pipeline engine; tenure stability (≥3 years in key roles).",
+  "preferred": "CX domain experience, AI selling experience, selling into Banks/Credit Unions (BFSI)."
 }

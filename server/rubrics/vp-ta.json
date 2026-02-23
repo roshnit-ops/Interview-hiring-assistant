@@ -1,0 +1,48 @@
+{
+  "role": "VP of TA",
+  "max_score": 3,
+  "scoring_guide": "0=No fit, 1=Some fit, 2=Good fit, 3=Excellent fit",
+  "categories": [
+    {
+      "name": "Scaling + Stage Fit",
+      "weight": 0.45,
+      "criteria": "Repeatedly led scaling through high-growth phases; 'hire faster + raise bar' tradeoffs with proof. Owned meaningful scale (team growth, hiring acceleration) with clear levers and outcomes.",
+      "sample_questions": [
+        "Tell me about the fastest growth phase you've been part of in a venture-backed company. What was your direct ownership in accelerating hiring/headcount during that period?",
+        "Walk me through how you balanced \"hire faster\" vs \"raise the bar\" when scaling TA teams from ~10 to 50+ headcount. What trade-offs did you make, and what were the measurable outcomes?",
+        "Give an example of a time you had to dramatically accelerate hiring velocity while keeping quality high. What levers did you pull?"
+      ]
+    },
+    {
+      "name": "Enterprise SaaS Hiring",
+      "weight": 0.35,
+      "criteria": "Deep enterprise SaaS hiring including senior/exec roles; strong calibration for 'enterprise operators'. Solid hiring across GTM + Product/Eng.",
+      "sample_questions": [
+        "Describe your experience hiring for enterprise SaaS companies — specifically across GTM (Sales, CS, Marketing) and Product/Engineering. How do you calibrate for \"enterprise operator\" profiles?",
+        "Tell me about hiring senior or executive roles in enterprise SaaS (Director/VP/C-level). What signals do you look for to know someone can operate at scale in complex GTM + tech environments?",
+        "How have you built hiring processes that work consistently for both go-to-market and technical roles in enterprise settings?"
+      ]
+    },
+    {
+      "name": "Conversational AI / Agentic AI (or AI-forward) Hiring",
+      "weight": 0.1,
+      "criteria": "Direct conversational/agentic AI company experience OR strong AI market fluency + demonstrated wins closing top AI talent.",
+      "sample_questions": [
+        "Have you hired AI/ML, conversational AI, or agentic AI talent before? Walk me through one tough AI-related hire you closed — what made it hard, and how did you win them?",
+        "How fluent are you in the current AI talent market (LLMs, agentic systems, applied AI)? Give examples of roles you've filled or candidates you've assessed in this space.",
+        "What strategies have you used to attract and close top-tier AI researchers or engineers when competing with OpenAI, Anthropic, Google, etc.?"
+      ]
+    },
+    {
+      "name": "Role Stability",
+      "weight": 0.1,
+      "criteria": "Consistent long stints (2–3+ years) and clear progression. Mostly 2+ years per role.",
+      "sample_questions": [
+        "Walk me through your last 3–4 roles. For each, how long were you there, what was your impact, and why did you leave?",
+        "Tell me about a time you stayed in a TA leadership role for 2+ years. What did you build or improve over that longer horizon?"
+      ]
+    }
+  ],
+  "non_negotiables_summary": "",
+  "preferred": ""
+}

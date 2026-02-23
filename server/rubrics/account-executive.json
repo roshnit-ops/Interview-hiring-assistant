@@ -1,0 +1,69 @@
+{
+  "role": "Account Executive",
+  "max_score": 3,
+  "scoring_guide": "0=No fit, 1=Some fit, 2=Good fit, 3=Excellent fit",
+  "categories": [
+    {
+      "name": "Stage fit (startup, ambiguity, ownership)",
+      "weight": 0.25,
+      "criteria": "Repeated early-stage/build-from-scratch; player mindset. Has operated in lean teams with scope ownership.",
+      "sample_questions": [
+        "Tell me about the most ambiguous, early-stage environment you've sold in (<200 people, high uncertainty). What ownership did you take, and what was the outcome?",
+        "Give an example of a time you had to build your own pipeline or territory from scratch in a startup. How did you approach it?",
+        "Describe a situation where there was no playbook — how did you figure out the motion and succeed?"
+      ]
+    },
+    {
+      "name": "Enterprise SaaS deal context (complexity)",
+      "weight": 0.25,
+      "criteria": "Repeated complex enterprise deals; credible buyer map exposure. Clear enterprise motion (multi-stakeholder, exec-facing).",
+      "sample_questions": [
+        "Walk me through your largest/most complex enterprise deal. How many stakeholders were involved, who were the key decision makers, and how did you map the buying committee?",
+        "Tell me about a deal where you faced multiple executive-level buyers (CISO, CFO, CRO, etc.). How did you navigate competing priorities?",
+        "What's your experience selling into regulated or highly complex industries? Give a specific example."
+      ]
+    },
+    {
+      "name": "Full-cycle scope (prospecting → close)",
+      "weight": 0.2,
+      "criteria": "Repeated full-cycle ownership with clear progression/impact. Full-cycle ownership with examples.",
+      "sample_questions": [
+        "Describe your typical sales process from first touch to closed-won. Do you own the full cycle, or are there handoffs? Give an example deal where you owned everything.",
+        "Tell me about a deal you sourced and closed entirely on your own — no SDR or inbound help.",
+        "How do you ensure consistent progression from discovery through to signature?"
+      ]
+    },
+    {
+      "name": "New business / hunter indicators",
+      "weight": 0.15,
+      "criteria": "Built/ran outbound motion or high % self-sourced pipeline. Consistent new-logo work.",
+      "sample_questions": [
+        "What percentage of your pipeline is typically self-sourced vs inbound? Give an example of a large deal you generated from cold outreach.",
+        "Tell me about a time you built or ran an outbound motion that produced meaningful pipeline.",
+        "How do you identify and penetrate new logos in competitive enterprise accounts?"
+      ]
+    },
+    {
+      "name": "Methodology + process (Sandler/MEDDIC)",
+      "weight": 0.1,
+      "criteria": "Evidence of disciplined process + metrics/cadences. Demonstrates process language + artifacts.",
+      "sample_questions": [
+        "Which sales methodology do you follow (MEDDIC, Sandler, Challenger, etc.)? Walk me through how you applied it in a recent deal.",
+        "Give an example of how you use a structured qualification framework (e.g., MEDDPICC) to manage risk in complex deals.",
+        "Do you track any specific process metrics (discovery calls per week, stage velocity, etc.)? What do they tell you?"
+      ]
+    },
+    {
+      "name": "Domain adjacency (BFSI / CX / AI)",
+      "weight": 0.05,
+      "criteria": "Repeated BFSI/CX wins or AI/CX platform selling. Direct CX/fintech or regulated exposure. Nice-to-have.",
+      "sample_questions": [
+        "Have you sold into BFSI (banking, financial services, insurance), customer experience platforms, or AI-related products? Tell me about one relevant deal.",
+        "Describe experience selling in regulated industries or to CX/tech buyers.",
+        "Have you sold AI-enabled or agentic platforms? How did you position value to buyers?"
+      ]
+    }
+  ],
+  "non_negotiables_summary": "",
+  "preferred": ""
+}

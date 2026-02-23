@@ -1,0 +1,69 @@
+{
+  "role": "VP of Sales",
+  "max_score": 5,
+  "scoring_guide": "1=No fit, 2=Weak, 3=Mixed, 4=Strong, 5=Exceptional",
+  "categories": [
+    {
+      "name": "Sales Track Record",
+      "weight": 0.25,
+      "criteria": "Proven revenue growth, large/complex deals, turnaround experience. Clear metrics on ARR, ACV, cycle, stakeholders.",
+      "sample_questions": [
+        "Walk me through your most significant revenue growth achievement. What was the starting ARR/booking number, what did you grow it to, and over what time period?",
+        "Tell me about your largest deal or set of deals closed — what was the ACV, sales cycle, and how many stakeholders were involved?",
+        "Describe a time you turned around an underperforming territory, team, or product line. What metrics improved and by how much?"
+      ]
+    },
+    {
+      "name": "Leadership & Team Building",
+      "weight": 0.2,
+      "criteria": "Built or scaled sales teams from scratch; hiring bar, performance management, and team outcomes.",
+      "sample_questions": [
+        "How many times have you built or scaled a sales team from scratch or near-scratch? What was the starting size and what did you grow it to?",
+        "Walk me through your hiring process for sales roles — what scorecard or interview stages do you use to ensure A-player hires?",
+        "Tell me about a time you had to deal with consistent underperformance on the team. How did you handle it and what was the result?"
+      ]
+    },
+    {
+      "name": "Strategic Thinking & GTM Execution",
+      "weight": 0.2,
+      "criteria": "Owned GTM strategy, forecasting, and adaptation to market/competitive changes.",
+      "sample_questions": [
+        "Describe a complete GTM strategy you owned and executed — what market, positioning, channels, and metrics did you target?",
+        "How do you build and maintain an accurate sales forecast? Walk me through your current model and a time it helped or failed.",
+        "Tell me about a time the market or competitive landscape changed dramatically — how did you adapt the sales motion?"
+      ]
+    },
+    {
+      "name": "Coaching & Development",
+      "weight": 0.15,
+      "criteria": "Coaching reps on deals, rep development metrics, pipeline and velocity improvement at team level.",
+      "sample_questions": [
+        "How do you coach reps on live deals? Give an example of a rep you took from average to top performer.",
+        "What key metrics do you track to measure rep development (e.g., ramp time, win rate improvement, promotion rate)?",
+        "Describe your approach to pipeline building and deal velocity improvement at the team level."
+      ]
+    },
+    {
+      "name": "Communication & Influence",
+      "weight": 0.1,
+      "criteria": "Ability to pitch, influence non-sales stakeholders, and deliver bad news to executives and team.",
+      "sample_questions": [
+        "Present a 2-minute mock pitch for our product as if you were selling to a skeptical CRO.",
+        "Tell me about a time you had to influence a non-sales stakeholder (CEO, Product, Finance) to change direction.",
+        "How do you deliver bad news (missed quarter, lost deal) to executives and the team?"
+      ]
+    },
+    {
+      "name": "Cultural Fit & Motivation",
+      "weight": 0.1,
+      "criteria": "Fit for stage, motivation beyond money, learning from failure.",
+      "sample_questions": [
+        "Why do you want to join us specifically at this stage of the company?",
+        "What motivates you most beyond money — give an example of a time you stayed committed through difficulty.",
+        "Tell me about a professional failure or setback and what you learned from it."
+      ]
+    }
+  ],
+  "non_negotiables_summary": "",
+  "preferred": ""
+}

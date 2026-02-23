@@ -4,6 +4,7 @@ import Interview, { getPendingReport, clearPendingReport } from './Interview';
 
 export default function App() {
   const [started, setStarted] = useState(false);
+  const [selectedRole, setSelectedRole] = useState('vp-sales');
   const [recipientEmail, setRecipientEmail] = useState(null);
   const [recoveryData, setRecoveryData] = useState(null);
 
@@ -12,8 +13,9 @@ export default function App() {
     if (pending) setRecoveryData(pending);
   }, []);
 
-  const handleStart = (email) => {
-    setRecipientEmail(email || null);
+  const handleStart = (roleId) => {
+    setSelectedRole(roleId || 'vp-sales');
+    setRecipientEmail(null);
     setRecoveryData(null);
     setStarted(true);
   };
@@ -35,6 +37,7 @@ export default function App() {
 
   return started ? (
     <Interview
+      selectedRole={recoveryData?.selectedRole ?? selectedRole}
       recipientEmail={recipientEmail}
       onEnd={handleEnd}
       recoveryData={recoveryData || undefined}

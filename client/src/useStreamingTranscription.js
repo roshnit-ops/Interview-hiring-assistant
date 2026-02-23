@@ -16,6 +16,7 @@ export function useStreamingTranscription(options = {}) {
   const [transcript, setTranscript] = useState('');
   const [turns, setTurns] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState(null);
   const wsRef = useRef(null);
   const streamRef = useRef(null);
@@ -48,12 +49,31 @@ export function useStreamingTranscription(options = {}) {
 
   const start = useCallback(async (audioSource = 'mic') => {
     setError(null);
-    const tokenRes = await fetch('/api/token');
-    const data = await tokenRes.json();
-    if (!data.token) {
-      const err = data.error || 'Failed to get token';
+    setIsStarting(true);
+    let data;
+    try {
+      const tokenRes = await fetch('/api/token');
+      const text = await tokenRes.text();
+      try {
+        data = JSON.parse(text);
+      } catch (_) {
+        setError(tokenRes.ok ? 'Invalid response from server' : `Recording setup failed (${tokenRes.status}). Check that the server is running and ASSEMBLYAI_API_KEY is set in server .env.`);
+        onError?.('Token request failed');
+        setIsStarting(false);
+        return;
+      }
+      if (!tokenRes.ok || !data.token) {
+        const err = data?.error || (tokenRes.status === 401 ? 'AssemblyAI API key missing or invalid. Add ASSEMBLYAI_API_KEY to server .env.' : `Failed to get recording token (${tokenRes.status}).`);
+        setError(err);
+        onError?.(err);
+        setIsStarting(false);
+        return;
+      }
+    } catch (e) {
+      const err = e.message || 'Could not reach server. Is the backend running? Check the proxy (e.g. port 4000).';
       setError(err);
       onError?.(err);
+      setIsStarting(false);
       return;
     }
 
@@ -66,6 +86,7 @@ export function useStreamingTranscription(options = {}) {
       if (!navigator.mediaDevices.getDisplayMedia) {
         setError('Tab capture not supported. Use Chrome or Edge.');
         onError?.('Tab capture not supported.');
+        setIsStarting(false);
         return;
       }
       try {
@@ -78,6 +99,7 @@ export function useStreamingTranscription(options = {}) {
           displayStream.getTracks().forEach((t) => t.stop());
           setError('No audio in shared tab. Pick the meeting tab and check "Share tab audio".');
           onError?.('No tab audio.');
+          setIsStarting(false);
           return;
         }
         tabStream = new MediaStream(audioTracks);
@@ -87,19 +109,28 @@ export function useStreamingTranscription(options = {}) {
         if (e.name === 'NotAllowedError') {
           setError('Tab share cancelled. Share the meeting tab to capture candidate audio.');
           onError?.('Tab share cancelled.');
-          return;
+        } else {
+          setError(e.message || 'Failed to capture meeting tab.');
+          onError?.(e.message);
         }
-        setError(e.message || 'Failed to capture meeting tab.');
-        onError?.(e.message);
+        setIsStarting(false);
         return;
       }
-      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamsToStop.push(micStream);
+      try {
+        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        streamsToStop.push(micStream);
+      } catch (e) {
+        setError(e.name === 'NotAllowedError' ? 'Microphone access denied. Allow microphone to record your questions.' : (e.message || 'Failed to access microphone.'));
+        onError?.(e.message);
+        setIsStarting(false);
+        return;
+      }
     } else if (audioSource === 'tab') {
       if (!navigator.mediaDevices.getDisplayMedia) {
         const err = 'Tab audio capture is not supported in this browser. Use Chrome or Edge.';
         setError(err);
         onError?.(err);
+        setIsStarting(false);
         return;
       }
       try {
@@ -113,24 +144,31 @@ export function useStreamingTranscription(options = {}) {
           const err = 'No audio in shared tab. When sharing, pick the meeting tab and choose "Share tab audio".';
           setError(err);
           onError?.(err);
+          setIsStarting(false);
           return;
         }
         stream = new MediaStream(audioTracks);
         displayStream.getVideoTracks().forEach((t) => t.stop());
       } catch (e) {
         if (e.name === 'NotAllowedError') {
-          const err = 'Tab share was cancelled or denied. Please share the tab where your meeting is running.';
-          setError(err);
-          onError?.(err);
-          return;
+          setError('Tab share was cancelled or denied. Please share the tab where your meeting is running.');
+          onError?.('Tab share cancelled');
+        } else {
+          setError(e.message || 'Failed to capture meeting tab audio.');
+          onError?.(e.message);
         }
-        const err = e.message || 'Failed to capture meeting tab audio.';
-        setError(err);
-        onError?.(err);
+        setIsStarting(false);
         return;
       }
     } else {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (e) {
+        setError(e.name === 'NotAllowedError' ? 'Microphone access denied. Allow microphone to record.' : (e.message || 'Failed to access microphone.'));
+        onError?.(e.message);
+        setIsStarting(false);
+        return;
+      }
     }
 
     if (stream) {
@@ -145,7 +183,14 @@ export function useStreamingTranscription(options = {}) {
     audioContextRef.current = audioContext;
 
     const workletPath = '/audio-processor.js';
-    await audioContext.audioWorklet.addModule(workletPath);
+    try {
+      await audioContext.audioWorklet.addModule(workletPath);
+    } catch (e) {
+      setError('Could not load audio processor. Use Chrome or Edge and ensure the app is served from the same origin.');
+      onError?.(e.message);
+      setIsStarting(false);
+      return;
+    }
     const worklet = new AudioWorkletNode(audioContext, 'audio-processor');
     workletRef.current = worklet;
 
@@ -174,6 +219,7 @@ export function useStreamingTranscription(options = {}) {
 
     ws.onopen = () => {
       setIsConnected(true);
+      setIsStarting(false);
       queueRef.current = new Int16Array(0);
       turnsMapRef.current = {};
     };
@@ -208,12 +254,14 @@ export function useStreamingTranscription(options = {}) {
     };
 
     ws.onerror = () => {
-      setError('WebSocket error');
+      setError('WebSocket error. Check ASSEMBLYAI_API_KEY in server .env.');
       onError?.('WebSocket error');
+      setIsStarting(false);
     };
 
     ws.onclose = () => {
       setIsConnected(false);
+      setIsStarting(false);
     };
   }, [onTurn, onError]);
 
@@ -221,5 +269,5 @@ export function useStreamingTranscription(options = {}) {
     return () => stop();
   }, [stop]);
 
-  return { transcript, turns, isConnected, error, start, stop };
+  return { transcript, turns, isConnected, isStarting, error, start, stop };
 }

@@ -1,12 +1,11 @@
-import { Resend } from 'resend';
+import sgMail from '@sendgrid/mail';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const DEFAULT_TO_EMAIL = 'roshni.t@interface.ai';
-const FROM_EMAIL = 'Sales Interview Tool <onboarding@resend.dev>';
+const FALLBACK_EMAIL = 'fallback@company.com';
 
 function getEnvKey(varName) {
   try {
@@ -132,20 +131,27 @@ function buildHtml(result, transcript, turns) {
 </html>`;
 }
 
-export async function sendEvaluationEmail(result, transcript, turns = null, recipientEmail = null) {
-  const toEmail = (typeof recipientEmail === 'string' && recipientEmail.trim())
-    ? recipientEmail.trim()
-    : getEnvKey('RECIPIENT_EMAIL') || DEFAULT_TO_EMAIL;
-  if (!toEmail) {
-    console.warn('No recipient email (provide on home page or set RECIPIENT_EMAIL in .env), skipping email');
-    return false;
+export async function sendEvaluationEmail(result, transcript, turns = null, email = null) {
+  let toEmail = (typeof email === 'string' && email.trim()) ? email.trim() : null;
+  if (!toEmail || !toEmail.includes('@')) {
+    toEmail = FALLBACK_EMAIL;
+    console.warn('No valid email provided; using fallback:', FALLBACK_EMAIL);
   }
-  const apiKey = getEnvKey('RESEND_API_KEY');
+  console.log('Actually sending email to:', toEmail);
+
+  const apiKey = getEnvKey('SENDGRID_API_KEY');
   if (!apiKey) {
-    console.warn('Resend: RESEND_API_KEY not set in .env, skipping email');
+    console.warn('SendGrid: SENDGRID_API_KEY not set in .env, skipping email');
     return false;
   }
-  const resend = new Resend(apiKey);
+
+  sgMail.setApiKey(apiKey);
+
+  // SendGrid requires a verified sender. Default to RECIPIENT_EMAIL if SENDGRID_FROM_EMAIL not set (same as test script).
+  const fromEmail = getEnvKey('SENDGRID_FROM_EMAIL') || getEnvKey('RECIPIENT_EMAIL') || 'noreply@example.com';
+  const fromName = getEnvKey('SENDGRID_FROM_NAME') || 'Sales Interview Tool';
+  const from = fromName ? `${fromName} <${fromEmail}>` : fromEmail;
+
   const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
   const subject = `Interview Evaluation Report - VP of Sales - ${date}`;
   let html;
@@ -155,15 +161,19 @@ export async function sendEvaluationEmail(result, transcript, turns = null, reci
     console.error('Failed to build email HTML:', buildErr);
     throw buildErr;
   }
-  const { data, error } = await resend.emails.send({
-    from: FROM_EMAIL,
-    to: [toEmail],
+
+  const msg = {
+    to: toEmail,
+    from,
     subject,
     html,
-  });
-  if (error) {
-    const msg = error.message || (typeof error === 'object' ? JSON.stringify(error) : 'Resend send failed');
-    throw new Error(msg);
+  };
+
+  try {
+    await sgMail.send(msg);
+    return true;
+  } catch (err) {
+    console.error('SendGrid send error:', err.response?.body?.errors || err.message);
+    throw err;
   }
-  return true;
 }

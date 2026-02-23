@@ -74,6 +74,54 @@
   color: var(--text);
 }
 
+.role-selector {
+  margin-bottom: 2rem;
+}
+
+.role-selector h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 0.75rem;
+  color: var(--text);
+}
+
+.role-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.role-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.role-card:hover {
+  border-color: var(--accent);
+  background: rgba(56, 139, 253, 0.06);
+}
+
+.role-card.selected {
+  border-color: var(--accent);
+  background: rgba(56, 139, 253, 0.12);
+}
+
+.role-card input {
+  margin: 0;
+}
+
+.role-label {
+  font-weight: 500;
+  color: var(--text);
+}
+
 .email-section {
   margin-bottom: 1.5rem;
 }

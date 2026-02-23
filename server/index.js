@@ -5,7 +5,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { createReadStream, existsSync } from 'fs';
 import { generateTempToken } from './tokenGenerator.js';
-import { evaluatePartial, evaluateFinal, getRubricSampleQuestions } from './routes/evaluate.js';
+import { evaluatePartial, evaluateFinal, getRubricSampleQuestions, getRoles } from './routes/evaluate.js';
 import * as calendar from './routes/calendar.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -27,10 +27,17 @@ app.get('/api/token', async (req, res) => {
     res.json({ token });
   } catch (err) {
     console.error('Token error:', err.response?.data || err.message);
-    res.status(500).json({ error: 'Failed to generate token' });
+    const status = err.response?.status;
+    const message = !process.env.ASSEMBLYAI_API_KEY
+      ? 'Recording not configured. Add ASSEMBLYAI_API_KEY to server .env (see .env.example).'
+      : status === 401
+        ? 'AssemblyAI API key invalid. Check ASSEMBLYAI_API_KEY in server .env.'
+        : 'Failed to get recording token. Check ASSEMBLYAI_API_KEY and network.';
+    res.status(500).json({ error: message });
   }
 });
 
+app.get('/api/roles', getRoles);
 app.get('/api/rubric-sample-questions', getRubricSampleQuestions);
 app.post('/api/evaluate', evaluatePartial);
 app.post('/api/evaluate-final', evaluateFinal);

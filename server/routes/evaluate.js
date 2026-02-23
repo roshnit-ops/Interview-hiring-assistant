@@ -1,12 +1,18 @@
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { sendEvaluationEmail } from '../utils/sendEvaluationEmail.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = join(__dirname, '..', '..');
+const rubricsDir = join(__dirname, '..', 'rubrics');
 const GROK_API_URL = 'https://api.x.ai/v1/chat/completions';
 const GROK_MODEL = 'grok-4-latest';
+
+const ROLES = [
+  { id: 'vp-sales', label: 'VP of Sales' },
+  { id: 'vp-ta', label: 'VP of TA' },
+  { id: 'account-executive', label: 'Account Executive' },
+];
 
 function getEnvKey(varName) {
   try {
@@ -60,89 +66,136 @@ function extractJson(text) {
   return JSON.parse(raw);
 }
 
-const rubric = JSON.parse(
-  readFileSync(join(__dirname, '..', 'rubric.json'), 'utf-8')
-);
+function getRubric(roleId) {
+  const safe = roleId && ROLES.some((r) => r.id === roleId) ? roleId : 'vp-sales';
+  const path = join(rubricsDir, `${safe}.json`);
+  if (!existsSync(path)) {
+    const fallback = join(__dirname, '..', 'rubric.json');
+    if (existsSync(fallback)) {
+      return JSON.parse(readFileSync(fallback, 'utf-8'));
+    }
+    throw new Error(`Rubric not found: ${roleId}`);
+  }
+  return JSON.parse(readFileSync(path, 'utf-8'));
+}
 
-/** GET /api/rubric-sample-questions — standard questions from rubric (for display before interview starts). */
+/** GET /api/roles — list available evaluation roles */
+export function getRoles(req, res) {
+  res.json({ roles: ROLES });
+}
+
+/** GET /api/rubric-sample-questions?role=vp-sales — questions with category and weight %, sorted by weight desc */
 export function getRubricSampleQuestions(req, res) {
   try {
-    const categories = rubric.categories || [];
+    const roleId = req.query.role || 'vp-sales';
+    const rubric = getRubric(roleId);
+    const categories = (rubric.categories || []).slice().sort((a, b) => (b.weight || 0) - (a.weight || 0));
     const questions = categories.flatMap((cat) =>
-      (cat.sample_questions || []).map((q) => ({ category: cat.name, question: q, already_asked: false }))
+      (cat.sample_questions || []).map((q) => ({
+        category: cat.name,
+        weight_pct: Math.round((cat.weight || 0) * 100),
+        question: typeof q === 'string' ? q : (q.question || q),
+        already_asked: false,
+      }))
     );
-    res.json({ questions });
+    res.json({ questions, role: rubric.role });
   } catch (err) {
     console.error('Rubric sample questions error:', err);
-    res.status(500).json({ error: 'Failed to load rubric questions' });
+    res.status(500).json({ error: err.message || 'Failed to load rubric questions' });
   }
 }
 
-const PARTIAL_SYSTEM = `You are an expert interviewer and assessor for a VP of Sales role. You are evaluating a live interview in real time.
+function buildPartialSystem(rubric) {
+  const roleLabel = rubric.role || 'this role';
+  const maxScore = rubric.max_score || 5;
+  const categoryList = (rubric.categories || [])
+    .sort((a, b) => (b.weight || 0) - (a.weight || 0))
+    .map((c) => `"${c.name}" (weight ${Math.round((c.weight || 0) * 100)}%)`)
+    .join(', ');
+  return `You are an expert interviewer and assessor. You are evaluating a live interview for the role: ${roleLabel}. All suggested questions MUST be for this role only and MUST come from this role's rubric below.
 
-RUBRIC (store in mind; use exact category names and weights):
+RUBRIC FOR ${roleLabel.toUpperCase()} (use exactly these categories and sample_questions; do not suggest generic or off-rubric questions):
 ${JSON.stringify(rubric, null, 2)}
+
+Allowed categories for suggested_questions (use exact names): ${categoryList}.
 
 Your job is to analyze the conversation so far and return a JSON object with no other text, no markdown, no code fence—only the raw JSON. Use this exact structure:
 {
-  "partial_scores": [ { "name": "<category name>", "score": <1-5 integer>, "justification": "<1-2 sentences>" } ],
-  "suggested_questions": [ { "question": "<question text>", "already_asked": <true|false> }, ... ],
+  "partial_scores": [ { "name": "<category name>", "score": <0-${maxScore} integer>, "justification": "<1-2 sentences>" } ],
+  "suggested_questions": [ { "question": "<question text>", "already_asked": <true|false>, "category": "<exact category name from rubric>", "weight_pct": <weight as integer 1-100> }, ... ],
   "red_flags": [ "<flag 1>", ... ],
   "strengths": [ "<strength 1>", ... ],
   "current_impression": "<2-4 sentence summary of how the candidate is doing so far>"
 }
 
 Rules:
-- partial_scores: one entry per rubric category; score 1-5 (1=no evidence, 5=strong evidence); justification brief.
-- suggested_questions: Return up to 10 specific follow-up questions. Each must have "question" (string) and "already_asked" (boolean). Set already_asked to true if the transcript clearly shows the interviewer has already asked this question or something very similar, or the topic was already discussed. Set to false if not yet asked. Return 10 questions when possible (mix of rubric-based and follow-ups); fewer only if transcript is very short.
-- red_flags: any concerns (vague answers, gaps, concerning statements). Empty array if none.
-- strengths: notable positives. Empty array if none yet.
-- current_impression: overall take so far.
-- If transcript is empty or very short, return neutral scores and generic suggested questions from the rubric.
+- partial_scores: one entry per rubric category; score 0-${maxScore} per rubric scoring_guide; justification brief.
+- suggested_questions (CRITICAL—adapt to interviewee responses):
+  1. Generate questions ONLY from the rubric above for ${roleLabel}. Use each category's criteria and sample_questions; you may rephrase or combine them for follow-ups.
+  2. Adapt to the conversation: (a) Where the candidate gave a vague, short, or evasive answer, suggest a follow-up to go deeper on that dimension. (b) Where a dimension is well covered, suggest questions for dimensions not yet covered or weakly covered. (c) Prioritize higher-weight categories first; order the list by category weight (highest first).
+  3. Each entry must have "category" set to one of the exact category names from the rubric and "weight_pct" set to that category's weight as an integer (e.g. 45 for 0.45). Set already_asked to true only if the transcript clearly shows this question or topic was already asked; otherwise false.
+  4. Prefer behavioral/situational questions (e.g. "Tell me about a time...", "Walk me through..."). Return up to 10 questions; fewer only if transcript is very short.
+- red_flags, strengths, current_impression: as above.
+- If transcript is empty or very short, return neutral scores and suggested questions drawn from the rubric's sample_questions for ${roleLabel} (with category and weight_pct), ordered by weight descending.
 - Output only valid JSON, nothing else.`;
+}
 
-const FINAL_SYSTEM = `You are an expert interviewer and assessor for a VP of Sales role. You are producing the FINAL evaluation after the full interview.
+function buildFinalSystem(rubric) {
+  const roleLabel = rubric.role || 'this role';
+  const maxScore = rubric.max_score || 5;
+  return `You are an expert interviewer and assessor for a ${roleLabel} role. You are producing the FINAL evaluation after the full interview.
 
-RUBRIC (use exact category names and weights for weighted average; each category has sample_questions):
+RUBRIC (use exact category names and weights for weighted average):
 ${JSON.stringify(rubric, null, 2)}
 
 Return a single JSON object with no other text, no markdown, no code fence—only the raw JSON. Use this exact structure:
 {
-  "category_scores": [ { "name": "<category name>", "score": <1-5 integer>, "justification": "<detailed 2-5 sentences per category>" } ],
-  "weighted_overall_score": <number 0-100, integer or one decimal>,
+  "category_scores": [ { "name": "<category name>", "score": <0-${maxScore} number>, "justification": "<detailed 2-5 sentences per category>" } ],
+  "weighted_overall_score": <number 0-100, one decimal>,
   "hire_recommendation": "Strong Hire" | "Hire with caveats" | "No Hire",
   "summary": "<3-5 sentence overall summary and recommendation>",
-  "strengths": [ "<strength 1>", "<strength 2>", ... ],
+  "strengths": [ "<strength 1>", ... ],
   "weaknesses": [ "<weakness 1>", ... ],
   "red_flags": [ "<red flag 1>", ... ],
   "questions_coverage": {
     "asked": [ { "category": "<rubric category name>", "question_or_topic": "<what was asked or discussed (brief)>" } ],
-    "missed": [ { "category": "<rubric category name>", "sample_questions_not_asked": [ "<exact or paraphrased sample question from rubric>", ... ] } ]
+    "missed": [ { "category": "<rubric category name>", "sample_questions_not_asked": [ "<question from rubric>", ... ] } ]
   }
 }
 
 Rules:
-- weighted_overall_score: convert the rubric weighted average (1-5) to a score out of 100. Formula: sum(category_score * weight) for each category gives 1-5; then (that value / 5) * 100 = score out of 100. Round to one decimal.
-- hire_recommendation: use exactly one of "Strong Hire", "Hire with caveats", or "No Hire".
-- category_scores: one entry per rubric category; justification must be 2-5 detailed sentences.
-- strengths, weaknesses, red_flags: arrays of concise bullet points (2-6 items each). Empty array if none.
-- summary: brief overall take and recommendation. Be strict but fair.
-- questions_coverage: Infer from the transcript (interviewer + candidate) which rubric areas were probed and which were not. "asked": list each category that was clearly addressed, with a short description of what was asked/discussed. "missed": list each category that was NOT adequately covered, with the relevant sample_questions from the rubric that the interviewer should have asked. Use the exact category names from the rubric.
+- weighted_overall_score: MUST be computed from category_scores and rubric weights. Formula: weighted_sum = sum(category_score * category_weight) for each category; then (weighted_sum / ${maxScore}) * 100. Round to one decimal. The rubric uses max_score ${maxScore} for each category.
+- hire_recommendation, category_scores, strengths, weaknesses, red_flags, summary, questions_coverage: as before. Use exact category names from the rubric.
 - Output only valid JSON, nothing else.`;
+}
+
+function computeWeightedScore(categoryScores, rubric) {
+  const maxScore = rubric.max_score || 5;
+  const byName = new Map((rubric.categories || []).map((c) => [c.name, c.weight]));
+  let weightedSum = 0;
+  for (const row of categoryScores || []) {
+    const w = byName.get(row.name);
+    if (w != null && row.score != null) weightedSum += Number(row.score) * w;
+  }
+  return Math.round((weightedSum / maxScore) * 1000) / 10;
+}
 
 export async function evaluatePartial(req, res) {
   try {
-    const { transcript } = req.body;
+    const { transcript, role: roleId } = req.body;
     if (typeof transcript !== 'string') {
       return res.status(400).json({ error: 'transcript must be a string' });
     }
+    const rubric = getRubric(roleId || 'vp-sales');
+    const systemContent = buildPartialSystem(rubric);
 
+    const roleLabel = rubric.role || 'the selected role';
     const raw = await grokChat(
       [
-        { role: 'system', content: PARTIAL_SYSTEM },
+        { role: 'system', content: systemContent },
         {
           role: 'user',
-          content: `Conversation so far:\n\n${transcript || '(No speech transcribed yet.)'}`,
+          content: `Role being evaluated: ${roleLabel}.\n\nConversation so far:\n\n${transcript || '(No speech transcribed yet.)'}`,
         },
       ],
       0.3
@@ -152,12 +205,17 @@ export async function evaluatePartial(req, res) {
     }
 
     const parsed = extractJson(raw);
+    const categoryByWeight = new Map((rubric.categories || []).map((c) => [c.name, { name: c.name, weight: c.weight }]));
     if (Array.isArray(parsed.suggested_questions)) {
-      parsed.suggested_questions = parsed.suggested_questions.map((item) =>
-        typeof item === 'string'
-          ? { question: item, already_asked: false }
-          : { question: item?.question ?? String(item), already_asked: !!item?.already_asked }
-      );
+      parsed.suggested_questions = parsed.suggested_questions.map((item) => {
+        const q = typeof item === 'string' ? { question: item, already_asked: false } : { question: item?.question ?? String(item), already_asked: !!item?.already_asked, category: item?.category, weight_pct: item?.weight_pct };
+        if (q.category && categoryByWeight.has(q.category) && (q.weight_pct == null || q.weight_pct === 0)) {
+          q.weight_pct = Math.round((categoryByWeight.get(q.category).weight || 0) * 100);
+        }
+        if (!q.weight_pct && q.category) q.weight_pct = Math.round((categoryByWeight.get(q.category)?.weight || 0) * 100);
+        return q;
+      });
+      parsed.suggested_questions.sort((a, b) => (b.weight_pct || 0) - (a.weight_pct || 0));
     }
     return res.json(parsed);
   } catch (err) {
@@ -173,24 +231,15 @@ export async function evaluatePartial(req, res) {
 
 const MAX_TRANSCRIPT_CHARS = 36000;
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-function getValidEmail(body) {
-  const raw = body.email ?? body.recipientEmail;
-  if (typeof raw !== 'string') return null;
-  const trimmed = raw.trim();
-  return trimmed && EMAIL_REGEX.test(trimmed) ? trimmed : null;
-}
-
 export async function evaluateFinal(req, res) {
   try {
-    const { transcript, turns } = req.body;
+    const { transcript, turns, role: roleId } = req.body;
     if (typeof transcript !== 'string') {
       return res.status(400).json({ error: 'transcript must be a string' });
     }
-    const recipientEmail = getValidEmail(req.body);
+    const rubric = getRubric(roleId || 'vp-sales');
+    const systemContent = buildFinalSystem(rubric);
 
-    // Use full transcript or last portion for very long interviews to keep API fast
     const transcriptForEval =
       transcript.length <= MAX_TRANSCRIPT_CHARS
         ? transcript
@@ -199,7 +248,7 @@ export async function evaluateFinal(req, res) {
 
     const raw = await grokChat(
       [
-        { role: 'system', content: FINAL_SYSTEM },
+        { role: 'system', content: systemContent },
         {
           role: 'user',
           content: `Full interview transcript:\n\n${transcriptForEval}`,
@@ -220,20 +269,8 @@ export async function evaluateFinal(req, res) {
       return res.status(500).json({ error: 'Invalid evaluation format from AI' });
     }
 
-    const toEmail = recipientEmail;
-    let emailSent = false;
-    let emailError = null;
-    if (toEmail) {
-      try {
-        emailSent = await sendEvaluationEmail(parsed, transcript, turns, toEmail);
-        if (emailSent) console.log('Evaluation email sent to', toEmail);
-        else if (!emailError) emailError = 'Resend not configured or send failed. Check RESEND_API_KEY in .env and verify your domain in Resend.';
-      } catch (emailErr) {
-        emailError = emailErr?.message || 'Failed to send email';
-        console.error('Failed to send evaluation email:', emailError);
-      }
-    }
-    return res.status(200).json({ ...parsed, emailSent: !!emailSent, emailError: emailError || undefined });
+    parsed.weighted_overall_score = computeWeightedScore(parsed.category_scores, rubric);
+    return res.status(200).json(parsed);
   } catch (err) {
     console.error('Evaluate final error:', err);
     const is429 = err.status === 429 || (err.message && String(err.message).includes('429'));

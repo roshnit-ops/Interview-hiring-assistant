@@ -1,131 +1,72 @@
 import { useState, useEffect } from 'react';
 import './Home.css';
 
-const API = '';
+const API_BASE = '';
 
-async function getCalendarStatus() {
-  const res = await fetch(`${API}/api/calendar/status`);
-  if (!res.ok) return { connected: false, hasConfig: false };
-  return res.json();
-}
-
-async function getCalendarAuthUrl() {
-  const res = await fetch(`${API}/api/calendar/auth-url`);
-  if (!res.ok) throw new Error('Failed to get auth URL');
-  const data = await res.json();
-  return data.url;
-}
-
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-function isValidEmail(value) {
-  if (!value || typeof value !== 'string') return false;
-  return EMAIL_REGEX.test(value.trim());
-}
-
-async function getCalendarEvents() {
-  const res = await fetch(`${API}/api/calendar/events`);
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const msg = data.error || (res.status === 401 ? 'Not connected' : 'Failed to load events');
-    throw new Error(msg);
-  }
-  return data.events || [];
-}
+const DEFAULT_ROLES = [
+  { id: 'vp-sales', label: 'VP of Sales' },
+  { id: 'vp-ta', label: 'VP of TA' },
+  { id: 'account-executive', label: 'Account Executive' },
+];
 
 export default function Home({ onStart, recoveryData, onRecoveryStart, onRecoveryClear }) {
-  const [calendarConnected, setCalendarConnected] = useState(false);
-  const [calendarConfigured, setCalendarConfigured] = useState(false);
-  const [events, setEvents] = useState([]);
-  const [eventsLoading, setEventsLoading] = useState(false);
-  const [calendarError, setCalendarError] = useState(null);
-  const [recipientEmail, setRecipientEmail] = useState('');
-  const [emailError, setEmailError] = useState('');
+  const [roles, setRoles] = useState(DEFAULT_ROLES);
+  const [selectedRole, setSelectedRole] = useState('vp-sales');
+  const [rolesLoading, setRolesLoading] = useState(true);
 
   useEffect(() => {
-    getCalendarStatus().then(({ connected, hasConfig }) => {
-      setCalendarConnected(!!connected);
-      setCalendarConfigured(!!hasConfig);
-      if (connected) {
-        setEventsLoading(true);
-        setCalendarError(null);
-        getCalendarEvents()
-          .then((list) => {
-            setEvents(list);
-            setCalendarError(null);
-          })
-          .catch((e) => setCalendarError(e.message))
-          .finally(() => setEventsLoading(false));
-      }
-    });
+    fetch(`${API_BASE}/api/roles`)
+      .then((r) => r.ok ? r.json() : Promise.resolve({ roles: [] }))
+      .then((data) => {
+        if (data.roles?.length) {
+          setRoles(data.roles);
+          if (!data.roles.some((r) => r.id === selectedRole)) setSelectedRole(data.roles[0].id);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setRolesLoading(false));
   }, []);
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const calendar = params.get('calendar');
-    if (calendar === 'connected') {
-      setCalendarConnected(true);
-      setCalendarConfigured(true);
-      setEventsLoading(true);
-      setCalendarError(null);
-      getCalendarEvents()
-        .then((list) => {
-          setEvents(list);
-          setCalendarError(null);
-        })
-        .catch((e) => setCalendarError(e.message))
-        .finally(() => setEventsLoading(false));
-      window.history.replaceState({}, '', window.location.pathname);
-    }
-    if (calendar === 'error') {
-      setCalendarError(params.get('message') || 'Calendar connection failed');
-      window.history.replaceState({}, '', window.location.pathname);
-    }
-  }, []);
-
-  const handleConnectCalendar = async () => {
-    try {
-      const url = await getCalendarAuthUrl();
-      window.location.href = url;
-    } catch (e) {
-      setCalendarError(e.message);
-    }
-  };
-
-  const validateAndGetEmail = () => {
-    setEmailError('');
-    const trimmed = (recipientEmail && String(recipientEmail).trim()) || '';
-    if (!trimmed) return null;
-    if (!isValidEmail(trimmed)) {
-      setEmailError('Please enter a valid email address.');
-      return undefined;
-    }
-    return trimmed;
-  };
-
-  const handleStartForMeeting = (meeting) => {
-    if (meeting.meetLink) window.open(meeting.meetLink, '_blank', 'noopener,noreferrer');
-    const email = validateAndGetEmail();
-    if (email !== undefined) onStart(email);
-  };
-
-  const handleStartInterview = () => {
-    const email = validateAndGetEmail();
-    if (email !== undefined) onStart(email);
-  };
-
-  const formatStart = (start) => {
-    if (!start) return '';
-    const d = new Date(start);
-    return d.toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-  };
+  const handleStart = () => onStart(selectedRole);
 
   return (
     <div className="home">
       <header className="home-header">
-        <h1>VP of Sales — Live Interview Evaluation</h1>
+        <h1>Live Interview Evaluation</h1>
         <p className="subtitle">Real-time rubric scoring and follow-up suggestions</p>
       </header>
+
+      <section className="role-selector">
+        <h2>Choose role to evaluate</h2>
+        {rolesLoading ? (
+          <p className="muted">Loading roles…</p>
+        ) : (
+          <div className="role-options">
+            {roles.map((r) => (
+              <label key={r.id} className={`role-card ${selectedRole === r.id ? 'selected' : ''}`}>
+                <input
+                  type="radio"
+                  name="role"
+                  value={r.id}
+                  checked={selectedRole === r.id}
+                  onChange={() => setSelectedRole(r.id)}
+                />
+                <span className="role-label">{r.label}</span>
+              </label>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="instructions">
+        <h2>Instructions for the interviewer</h2>
+        <ul>
+          <li><strong>Before starting:</strong> Choose your audio source (mic, meeting tab, or both). For video calls, share the meeting tab with &quot;Share tab audio&quot; checked so the candidate&apos;s voice is captured.</li>
+          <li><strong>Suggested questions:</strong> Use the list on the right to go deeper—ask behavioral and situational questions so the candidate can demonstrate real experience.</li>
+          <li><strong>Live evaluation:</strong> Scores, strengths, red flags, and current impression update as you talk. Use them to guide follow-ups.</li>
+          <li><strong>End interview:</strong> Click &quot;End Interview&quot; when done. The full report is generated and you can download it as a PDF file.</li>
+        </ul>
+      </section>
 
       {recoveryData && (
         <div className="recovery-banner">
@@ -141,75 +82,7 @@ export default function Home({ onStart, recoveryData, onRecoveryStart, onRecover
         </div>
       )}
 
-      {calendarConfigured && (
-        <section className="calendar-section">
-          <h2>Google Calendar</h2>
-          {calendarError && <p className="calendar-error">{calendarError}</p>}
-          {!calendarConnected ? (
-            <>
-              <p className="calendar-hint">Connect your calendar to see meetings with Google Meet links and start evaluation in one click.</p>
-              <button type="button" className="btn btn-calendar" onClick={handleConnectCalendar}>
-                Connect Google Calendar
-              </button>
-            </>
-          ) : (
-            <>
-              <p className="calendar-connected">Upcoming events (next 7 days). Start evaluation for those with a Meet link:</p>
-              {eventsLoading ? (
-                <p className="muted">Loading events…</p>
-              ) : events.length === 0 ? (
-                <p className="muted">No upcoming events in the next 7 days.</p>
-              ) : (
-                <ul className="meeting-list">
-                  {events.map((ev) => (
-                    <li key={ev.id} className="meeting-item">
-                      <div className="meeting-info">
-                        <span className="meeting-title">{ev.summary}</span>
-                        <span className="meeting-time">{formatStart(ev.start)}</span>
-                        {!ev.meetLink && <span className="meeting-no-meet">No Meet link</span>}
-                      </div>
-                      {ev.meetLink ? (
-                        <button
-                          type="button"
-                          className="btn btn-start-meeting"
-                          onClick={() => handleStartForMeeting(ev)}
-                        >
-                          Start evaluation
-                        </button>
-                      ) : (
-                        <span className="muted">—</span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </>
-          )}
-        </section>
-      )}
-
-      <section className="email-section">
-        <label htmlFor="recipient-email" className="email-label">
-          Email for evaluation report
-        </label>
-        <input
-          id="recipient-email"
-          type="email"
-          placeholder="you@company.com"
-          value={recipientEmail}
-          onChange={(e) => {
-            setRecipientEmail(e.target.value);
-            if (emailError) setEmailError('');
-          }}
-          className={`email-input ${emailError ? 'email-input-invalid' : ''}`}
-          aria-invalid={!!emailError}
-          aria-describedby={emailError ? 'email-error' : 'email-hint'}
-        />
-        <p id="email-hint" className="email-hint">The final report will be sent to this address after you end the interview.</p>
-        {emailError && <p id="email-error" className="email-error" role="alert">{emailError}</p>}
-      </section>
-
-      <button className="btn-start" onClick={handleStartInterview}>
+      <button className="btn-start" onClick={handleStart}>
         Start Interview
       </button>
     </div>

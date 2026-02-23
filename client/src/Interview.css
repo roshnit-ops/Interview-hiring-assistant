@@ -159,9 +159,10 @@
   overflow: hidden;
 }
 
+/* Evaluation takes ~60%, scrollable; transcript takes 40% of the section */
 .evaluation-panel {
   flex: 1 1 0;
-  min-height: 200px;
+  min-height: 0;
   overflow-y: auto;
 }
 
@@ -203,13 +204,12 @@
 }
 
 .transcript-panel {
-  flex: 0 0 auto;
+  flex: 0 0 40%;
+  min-height: 0;
   background: var(--bg);
   border-top: 1px solid var(--border);
   border-right: none;
   margin-top: 0.75rem;
-  max-height: 200px;
-  min-height: 140px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -217,6 +217,12 @@
 
 .transcript-panel h2,
 .evaluation-panel h2,
+.questions-panel-hint {
+  font-size: 0.8rem;
+  margin: 0 0 0.75rem;
+  line-height: 1.4;
+}
+
 .questions-panel h2 {
   font-size: 0.95rem;
   font-weight: 600;
@@ -226,8 +232,8 @@
 
 .transcript-scroll {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  min-height: 80px;
 }
 
 .transcript-turn {
@@ -244,7 +250,6 @@
 
 .evaluation-panel {
   background: var(--surface);
-  overflow-y: auto;
 }
 
 .evaluation-panel .block {
@@ -318,6 +323,12 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+.question-weight {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin: 0;
 }
 
 .question-asked .question-badge {
