@@ -70,7 +70,7 @@ export function useStreamingTranscription(options = {}) {
         return;
       }
     } catch (e) {
-      const err = e.message || 'Could not reach server. Is the backend running? Check the proxy (e.g. port 4000).';
+      const err = e.message || 'Could not reach server. Is the backend running?';
       setError(err);
       onError?.(err);
       setIsStarting(false);
