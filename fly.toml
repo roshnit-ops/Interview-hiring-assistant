@@ -1,0 +1,15 @@
+# Fly.io app configuration
+# Deploy: fly launch (first time) or fly deploy
+
+app = "hiring-assistant"
+primary_region = "bom"
+
+[build]
+  build-command = "npm run install:all && npm run build:client"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
