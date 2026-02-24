@@ -2,3 +2,6 @@
 sendgrid.env
 .calendar-tokens.json
 .env # just in case
+sendgrid.env
+.calendar-tokens.json
+.env
